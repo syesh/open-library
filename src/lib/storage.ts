@@ -41,15 +41,70 @@ function saveLocalData(data: GuestStorageData) {
   }
 }
 
-// Check if current user is logged in via Supabase
-export async function getCurrentUser() {
+// Check if current user is logged in via Supabase or local session
+export async function getCurrentUser(): Promise<{ id: string; email: string } | null> {
   const supabase = getSupabaseBrowserClient();
-  if (!supabase) return null;
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user || null;
-  } catch {
-    return null;
+  if (supabase) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) return { id: user.id, email: user.email };
+    } catch {
+      // ignore
+    }
+  }
+
+  // Fallback local session if Supabase is not connected
+  if (typeof window !== "undefined") {
+    const rawUser = localStorage.getItem("openread_user_session");
+    if (rawUser) {
+      try {
+        const parsed = JSON.parse(rawUser);
+        if (parsed && parsed.email) {
+          return { id: parsed.id || `local_${parsed.email}`, email: parsed.email };
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return null;
+}
+
+export async function signInWithEmail(email: string): Promise<{ success: boolean; message: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return { success: false, message: "Please enter a valid email address." };
+
+  const supabase = getSupabaseBrowserClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ email: cleanEmail });
+      if (!error) {
+        return { success: true, message: `Magic login link sent to ${cleanEmail}!` };
+      }
+    } catch (err) {
+      console.warn("Supabase auth error, using local session:", err);
+    }
+  }
+
+  // Local user profile sign-in
+  const user = { id: `user_${cleanEmail.replace(/[^a-z0-9]/g, "_")}`, email: cleanEmail };
+  if (typeof window !== "undefined") {
+    localStorage.setItem("openread_user_session", JSON.stringify(user));
+  }
+  return { success: true, message: `Signed in successfully as ${cleanEmail}` };
+}
+
+export async function signOutUser(): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  if (supabase) {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("openread_user_session");
   }
 }
 
@@ -127,10 +182,7 @@ export async function checkIsFavorite(bookId: number): Promise<boolean> {
 // --- READING PROGRESS (ONLY saved if user is LOGGED IN) ---
 export async function getBookProgress(bookId: number): Promise<ReadingProgress | null> {
   const user = await getCurrentUser();
-  if (!user) {
-    // Guest mode -> Return null (progress not stored for guests)
-    return null;
-  }
+  if (!user) return null;
 
   const supabase = getSupabaseBrowserClient();
   if (supabase) {
@@ -147,6 +199,14 @@ export async function getBookProgress(bookId: number): Promise<ReadingProgress |
     }
   }
 
+  if (typeof window !== "undefined") {
+    const key = `openread_progress_${user.id}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const map = JSON.parse(raw);
+      return map[bookId] || null;
+    }
+  }
   return null;
 }
 
@@ -156,7 +216,6 @@ export async function saveBookProgress(
   progressPercent: number,
   finished?: boolean
 ): Promise<void> {
-  // CRITICAL REQUIREMENT: If no login, don't store reading progress
   const user = await getCurrentUser();
   if (!user) return;
 
@@ -175,9 +234,26 @@ export async function saveBookProgress(
         },
         { onConflict: "user_id,book_id" }
       );
+      return;
     } catch (err) {
       console.warn("Supabase save progress failed:", err);
     }
+  }
+
+  if (typeof window !== "undefined") {
+    const key = `openread_progress_${user.id}`;
+    const raw = localStorage.getItem(key);
+    const map = raw ? JSON.parse(raw) : {};
+    map[bookId] = {
+      id: `${user.id}_${bookId}`,
+      user_id: user.id,
+      book_id: bookId,
+      cfi_location: cfiLocation,
+      progress_percent: roundedPercent,
+      finished: finished !== undefined ? finished : false,
+      updated_at: new Date().toISOString(),
+    };
+    localStorage.setItem(key, JSON.stringify(map));
   }
 }
 
@@ -212,6 +288,12 @@ export async function getAllProgress(): Promise<Record<number, ReadingProgress>>
     } catch (err) {
       console.warn("Supabase fetch all progress failed:", err);
     }
+  }
+
+  if (typeof window !== "undefined") {
+    const key = `openread_progress_${user.id}`;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : {};
   }
 
   return {};

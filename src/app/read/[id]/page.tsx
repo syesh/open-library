@@ -76,7 +76,7 @@ export default function ReaderPage() {
     flowMode: "scrolled",
   });
 
-  // Check auth user, stored mode preference & initial settings
+  // Check auth user & initial settings (Always prompts for reading experience on visit)
   useEffect(() => {
     const loadedSettings = getStoredSettings();
 
@@ -88,14 +88,11 @@ export default function ReaderPage() {
 
     if (savedFlowPref && (savedFlowPref === "scrolled" || savedFlowPref === "paginated")) {
       loadedSettings.flowMode = savedFlowPref;
-      setSettings(loadedSettings);
-      setInitialModeChosen(true);
-      setShowModeSelector(false);
-    } else {
-      setSettings(loadedSettings);
-      setShowModeSelector(true);
-      setInitialModeChosen(false);
     }
+
+    setSettings(loadedSettings);
+    setShowModeSelector(true);
+    setInitialModeChosen(false);
 
     getCurrentUser().then((user) => {
       setIsGuest(!user);
@@ -150,6 +147,9 @@ export default function ReaderPage() {
 
       // Strict font sizing boundaries (14px to 24px)
       const clampedFontSize = Math.min(24, Math.max(14, newSettings.fontSize));
+      const isScrolled = newSettings.flowMode === "scrolled";
+      const bodyOverflow = isScrolled ? "visible !important" : "hidden !important";
+      const bodyHeight = isScrolled ? "auto !important" : "100% !important";
 
       rendition.themes.font(fontCss);
       rendition.themes.fontSize(`${clampedFontSize}px`);
@@ -163,6 +163,8 @@ export default function ReaderPage() {
           margin: "0 auto !important",
           "max-width": "680px !important",
           "overflow-wrap": "break-word !important",
+          "overflow-y": bodyOverflow,
+          height: bodyHeight,
         },
         p: { "line-height": "1.8 !important", "margin-bottom": "1.25em !important" },
       });
@@ -176,6 +178,8 @@ export default function ReaderPage() {
           margin: "0 auto !important",
           "max-width": "680px !important",
           "overflow-wrap": "break-word !important",
+          "overflow-y": bodyOverflow,
+          height: bodyHeight,
         },
         p: { "line-height": "1.8 !important", "margin-bottom": "1.25em !important" },
       });
@@ -189,6 +193,8 @@ export default function ReaderPage() {
           margin: "0 auto !important",
           "max-width": "680px !important",
           "overflow-wrap": "break-word !important",
+          "overflow-y": bodyOverflow,
+          height: bodyHeight,
         },
         p: { "line-height": "1.8 !important", "margin-bottom": "1.25em !important" },
       });
@@ -198,7 +204,7 @@ export default function ReaderPage() {
     []
   );
 
-  // Initialize EPUB Engine once user mode preference is known
+  // Initialize EPUB Engine once user mode preference is confirmed
   useEffect(() => {
     if (!bookMeta || !viewerRef.current || !initialModeChosen) return;
 
@@ -208,6 +214,11 @@ export default function ReaderPage() {
       try {
         setLoading(true);
         setError(null);
+
+        // Always clean up existing viewer container DOM to prevent duplicate layers
+        if (viewerRef.current) {
+          viewerRef.current.innerHTML = "";
+        }
 
         const proxyUrl = getEpubProxyUrl(bookMeta!);
         if (!proxyUrl) {
@@ -227,15 +238,40 @@ export default function ReaderPage() {
 
         if (!viewerRef.current) return;
 
-        const flowOption = settings.flowMode === "scrolled" ? "scrolled-doc" : "paginated";
+        const isScrolled = settings.flowMode === "scrolled";
+        const flowOption = isScrolled ? "scrolled-doc" : "paginated";
 
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
           spread: "none",
           flow: flowOption,
+          manager: isScrolled ? "continuous" : "default",
         });
         renditionRef.current = rendition;
+
+        // Inject dynamic style overrides into EPUB iframe documents for smooth scrolling
+        rendition.hooks.content.register((contents: { document?: Document }) => {
+          if (!contents || !contents.document) return;
+          const doc = contents.document;
+          const style = doc.createElement("style");
+          if (isScrolled) {
+            style.innerHTML = `
+              html, body {
+                overflow-y: visible !important;
+                height: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+              }
+            `;
+          } else {
+            style.innerHTML = `
+              html, body {
+                overflow: hidden !important;
+              }
+            `;
+          }
+          doc.head.appendChild(style);
+        });
 
         applyRenditionStyles(rendition, settings);
 
@@ -446,43 +482,55 @@ export default function ReaderPage() {
 
   return (
     <div className={`relative flex h-screen w-screen flex-col overflow-hidden transition-colors ${getBgClass()}`}>
-      {/* Mode Selector Modal - Prompted ONLY on 1st visit if no preference stored */}
+      {/* Mode Selector Modal - Prompted EVERY time user opens a book */}
       {showModeSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-gray-900 border border-gray-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl text-gray-900 border border-gray-100 my-auto">
             <div className="text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-white mb-3 shadow-md">
                 <Compass className="h-6 w-6" />
               </div>
               <h3 className="font-serif text-xl font-bold">Choose Reading Experience</h3>
               <p className="mt-1 text-xs text-gray-500 max-w-xs mx-auto">
-                Select your preferred reading mode (you can change this anytime in settings):
+                How would you like to read this book? (You can also change this anytime in settings):
               </p>
             </div>
 
             <div className="mt-6 space-y-3">
               <button
                 onClick={() => handleModeChoice("scrolled")}
-                className="w-full flex items-center gap-4 rounded-xl border-2 border-[var(--color-primary-container)] bg-sky-50/60 p-4 text-left hover:bg-sky-50 transition-all group shadow-xs"
+                className={`w-full flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all group shadow-xs ${
+                  settings.flowMode === "scrolled"
+                    ? "border-[var(--color-primary-container)] bg-sky-50/70 font-semibold"
+                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                }`}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-primary-container)] text-white shadow-xs group-hover:scale-105 transition-transform">
                   <ScrollText className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="font-serif text-sm font-bold text-gray-900">Continuous Vertical Scroll</h4>
+                  <h4 className="font-serif text-sm font-bold text-gray-900">
+                    Continuous Vertical Scroll {settings.flowMode === "scrolled" && "(Last Used)"}
+                  </h4>
                   <p className="text-xs text-gray-600 mt-0.5">Scroll smoothly down through chapters like a webpage.</p>
                 </div>
               </button>
 
               <button
                 onClick={() => handleModeChoice("paginated")}
-                className="w-full flex items-center gap-4 rounded-xl border-2 border-gray-200 p-4 text-left hover:border-gray-300 hover:bg-gray-50 transition-all group"
+                className={`w-full flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all group shadow-xs ${
+                  settings.flowMode === "paginated"
+                    ? "border-[var(--color-primary-container)] bg-sky-50/70 font-semibold"
+                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                }`}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 shadow-xs group-hover:scale-105 transition-transform">
                   <BookOpen className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="font-serif text-sm font-bold text-gray-900">Book Page Cards</h4>
+                  <h4 className="font-serif text-sm font-bold text-gray-900">
+                    Book Page Cards {settings.flowMode === "paginated" && "(Last Used)"}
+                  </h4>
                   <p className="text-xs text-gray-600 mt-0.5">Flip page-by-page horizontally like a physical book.</p>
                 </div>
               </button>

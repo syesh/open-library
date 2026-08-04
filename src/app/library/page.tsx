@@ -256,7 +256,7 @@ function LibraryContent() {
         {!loading && activeTab === "reading" && (
           <div>
             {!userEmail ? (
-              <div className="my-16 text-center rounded-lg border border-amber-200 bg-amber-50/50 p-12">
+              <div className="my-8 sm:my-16 text-center rounded-lg border border-amber-200 bg-amber-50/50 p-6 sm:p-12">
                 <User className="mx-auto h-12 w-12 text-amber-600 mb-3 opacity-80" />
                 <h3 className="font-serif text-lg font-bold text-amber-900">Sign In to Track Progress</h3>
                 <p className="text-xs text-amber-800 mt-1 max-w-sm mx-auto leading-relaxed">
@@ -333,7 +333,7 @@ function LibraryContent() {
         {!loading && activeTab === "finished" && (
           <div>
             {!userEmail ? (
-              <div className="my-16 text-center rounded-lg border border-amber-200 bg-amber-50/50 p-12">
+              <div className="my-8 sm:my-16 text-center rounded-lg border border-amber-200 bg-amber-50/50 p-6 sm:p-12">
                 <CheckCircle2 className="mx-auto h-12 w-12 text-amber-600 mb-3 opacity-80" />
                 <h3 className="font-serif text-lg font-bold text-amber-900">Sign In to View Completed Ebooks</h3>
                 <p className="text-xs text-amber-800 mt-1 max-w-sm mx-auto leading-relaxed">
