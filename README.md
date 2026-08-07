@@ -81,9 +81,3 @@ open-library/
 └── package.json        # Dependencies & scripts
 ```
 
----
-
-## 📄 License
-
-This project is open-source under the [MIT License](LICENSE).
-
