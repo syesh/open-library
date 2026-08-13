@@ -1,6 +1,6 @@
 # 📖 Open Read E-Reader (`open-library`)
 
-> A serene, distraction-free web e-reader and digital library dedicated to public domain literature. Engineered with academic elegance, ergonomic reading themes, and seamless EPUB rendering.
+> A serene, distraction-free web e-reader and digital library dedicated to public domain literature. Engineered with academic elegance, ergonomic reading themes and seamless EPUB rendering.
 
 ---
 
@@ -15,8 +15,8 @@
   - Content rendered with **Merriweather** serif for maximum legibility.
   - Interface powered by **Inter** for clean navigation.
   - Adjustable font size, line spacing, and margin controls.
-- 🔖 **Progress Sync & Bookmarking**: Save reading progress, notes, and highlights seamlessly.
-- 📱 **Responsive Ergonomics**: Tailored layouts for desktop, tablet, and mobile displays.
+- 🔖 **Progress Sync & Bookmarking**: Save reading progress, notes and highlights seamlessly.
+- 📱 **Responsive Ergonomics**: Tailored layouts for desktop, tablet and mobile displays.
 
 ---
 
